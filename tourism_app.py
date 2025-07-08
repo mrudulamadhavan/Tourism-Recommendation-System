@@ -6,12 +6,16 @@ import numpy as np
 @st.cache_data
 def load_data():
     cuisine = pd.read_csv("data/cuisine.csv")
+    cuisine.columns = cuisine.columns.str.strip().str.lower()
+    
     payment = pd.read_csv("data/payment.csv")
     restaurant = pd.read_csv("data/restaurant.csv")
     reviews = pd.read_csv("data/reviews.csv")
     timing = pd.read_csv("data/timing.csv")
     timing_cuisine = pd.read_csv("data/timing_cuisine.csv")
+    
     return cuisine, payment, restaurant, reviews, timing, timing_cuisine
+
 
 cuisine_df, payment_df, restaurant_df, reviews_df, timing_df, timing_cuisine_df = load_data()
 
