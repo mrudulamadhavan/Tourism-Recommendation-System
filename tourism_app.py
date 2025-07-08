@@ -80,7 +80,7 @@ if st.sidebar.button("Get Recommendations"):
         # Process and display sorted, cleaned table
         display_df = recs[["name", "address", "city", "rating", "cost"]].sort_values(by="rating", ascending=False).reset_index(drop=True)
         display_df.columns = display_df.columns.str.capitalize()
-        st.dataframe(display_df)
+        st.dataframe(display_df,use_container_width=True)
     
         if st.checkbox("📍 Show Map"):
             map_df = recs[["latitude", "longitude"]].rename(columns={"latitude": "lat", "longitude": "lon"})
