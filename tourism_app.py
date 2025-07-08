@@ -2,43 +2,45 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# --- Load Data ---
+# Load Data
 @st.cache_data
 def load_data():
     cuisine = pd.read_csv("data/cuisine.csv")
+    cuisine.columns = cuisine.columns.str.strip().str.lower()
+
     payment = pd.read_csv("data/payment.csv")
     restaurant = pd.read_csv("data/restaurant.csv")
+    restaurant.columns = restaurant.columns.str.strip().str.lower()
+
     reviews = pd.read_csv("data/reviews.csv")
     timing = pd.read_csv("data/timing.csv")
     timing_cuisine = pd.read_csv("data/timing_cuisine.csv")
 
-    # Clean column names
-    cuisine.columns = cuisine.columns.str.strip().str.lower()
-    payment.columns = payment.columns.str.strip().str.lower()
-    restaurant.columns = restaurant.columns.str.strip().str.lower()
-    reviews.columns = reviews.columns.str.strip().str.lower()
-    timing.columns = timing.columns.str.strip().str.lower()
-    timing_cuisine.columns = timing_cuisine.columns.str.strip().str.lower()
-
     return cuisine, payment, restaurant, reviews, timing, timing_cuisine
 
-
-# --- Load Data ---
 cuisine_df, payment_df, restaurant_df, reviews_df, timing_df, timing_cuisine_df = load_data()
 
-# --- Page Config ---
+# Page Config
 st.set_page_config(page_title="🏝️ Tourism Recommender", layout="wide")
 st.markdown("<h1 style='text-align: center;'>🏝️ Tourism Recommendation System</h1>", unsafe_allow_html=True)
 
-# --- Sidebar UI ---
+# Sidebar - User Inputs
 st.sidebar.header("🔍 Filter Preferences")
 selected_cuisine = st.sidebar.selectbox("Choose a Cuisine", sorted(cuisine_df["cuisine"].unique()))
 algo = st.sidebar.radio("Recommendation Type", ["Nearby", "Rating", "Price", "Personalized", "Timing Based"])
 
-# --- Recommendation Logic ---
+# Helper - Aggregate user ratings
+def get_user_scores():
+    user_scores = reviews_df.groupby("rid")["rating"].mean().reset_index()
+    user_scores.columns = ["id", "user_rating"]
+    return user_scores
+
+# Filter Functions
 def find_nearby():
-    # In production, use user geolocation to calculate distance
-    return restaurant_df.sample(10)
+    # Improved logic for Nearby: Top-rated + lowest cost + has location data
+    nearby = restaurant_df.dropna(subset=["latitude", "longitude"])
+    nearby = nearby[nearby["latitude"] != 0]
+    return nearby.sort_values(by=["rating", "price"], ascending=[False, True]).head(10)
 
 def find_rating(cuisine):
     rid_cuisine = cuisine_df[cuisine_df["cuisine"] == cuisine]["rid"]
@@ -47,40 +49,22 @@ def find_rating(cuisine):
 
 def find_price(cuisine):
     rid_cuisine = cuisine_df[cuisine_df["cuisine"] == cuisine]["rid"]
-    matched = restaurant_df[restaurant_df["id"].isin(rid_cuisine)].sort_values("cost", ascending=True)
+    matched = restaurant_df[restaurant_df["id"].isin(rid_cuisine)].sort_values("price", ascending=True)
     return matched.head(10)
 
 def find_personalized(cuisine):
+    user_scores = get_user_scores()
+    merged = pd.merge(restaurant_df, user_scores, on="id", how="left")
     rid_cuisine = cuisine_df[cuisine_df["cuisine"] == cuisine]["rid"]
-    matched = restaurant_df[restaurant_df["id"].isin(rid_cuisine)]
-    return matched.sort_values(by=["rating", "cost"], ascending=[False, True]).head(10)
+    matched = merged[merged["id"].isin(rid_cuisine)]
+    return matched.sort_values(by=["user_rating", "price"], ascending=[False, True]).head(10)
 
 def find_timing():
-    from datetime import datetime
+    rid = timing_df["rid"].unique()
+    matched = restaurant_df[restaurant_df["id"].isin(rid)]
+    return matched.sort_values(by="rating", ascending=False).head(10)
 
-def find_timing(selected_time):
-    # Get current day of week (e.g., "Monday")
-    current_day = datetime.now().strftime("%A")
-
-    # Convert selected_time (datetime.time) to string format "HH:MM"
-    selected_time_str = selected_time.strftime("%H:%M")
-
-    # Filter timing data for the current day
-    today_timing = timing_df[timing_df["day"].str.lower() == current_day.lower()].copy()
-
-    # Filter restaurants open at selected time
-    open_now = today_timing[
-        (today_timing["starttime"] <= selected_time_str) &
-        (today_timing["endtime"] >= selected_time_str)
-    ]
-
-    # Get matching restaurant IDs
-    open_rids = open_now["rid"].unique()
-
-    return restaurant_df[restaurant_df["id"].isin(open_rids)]
-
-
-# --- Get Recommendations ---
+# Display Results
 if st.sidebar.button("Get Recommendations"):
     if algo.lower() == "nearby":
         recs = find_nearby()
@@ -96,27 +80,29 @@ if st.sidebar.button("Get Recommendations"):
         recs = pd.DataFrame()
 
     if not recs.empty:
-        # Get city name from the first restaurant (assumes all are from same city)
-        city_name = recs["city"].iloc[0] if "city" in recs.columns else "Selected City"
-    
+        city_name = recs["city"].iloc[0] if "city" in recs.columns else "Unknown"
         st.success(f"🍽️ Recommended Restaurants in **{city_name}** based on *{algo}*")
-    
-        # Select and rename columns (excluding City)
-        display_df = recs[["name", "address", "rating", "cost"]].copy()
-        display_df.columns = ["Name", "Address", "Rating", "Cost Per Head"]
-    
-        # Sort by Rating and Cost Per Head descending
-        display_df = display_df.sort_values(by=["Rating", "Cost Per Head"], ascending=[False, False]).reset_index(drop=True)
-    
-        # Show as fit-to-screen table
+
+        display_df = recs.rename(columns={
+            "rname": "Name",
+            "address": "Address",
+            "rating": "Rating",
+            "price": "Cost per Head"
+        })[["Name", "Address", "Rating", "Cost per Head"]]
+
+        display_df = display_df.sort_values(by=["Rating", "Cost per Head"], ascending=[False, False]).reset_index(drop=True)
         st.dataframe(display_df, use_container_width=True)
-    
-        # Show map if checked
+
         if st.checkbox("📍 Show Map"):
             map_df = recs[["latitude", "longitude"]].rename(columns={"latitude": "lat", "longitude": "lon"})
-            st.map(map_df)
+            if not map_df.empty:
+                st.map(map_df)
+            else:
+                st.warning("No location data available to display on the map.")
+    else:
+        st.warning("No matching recommendations found.")
 
-# --- Footer ---
+# Footer
 st.markdown("---")
 st.markdown("<center>Made with ❤️ using Streamlit</center>", unsafe_allow_html=True)
 
