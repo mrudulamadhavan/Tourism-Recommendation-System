@@ -18,25 +18,24 @@ def load_data():
 
     return cuisine, payment, restaurant, reviews, timing, timing_cuisine
 
-# Load all dataframes
 cuisine_df, payment_df, restaurant_df, reviews_df, timing_df, timing_cuisine_df = load_data()
 
-# Streamlit page configuration
+# Page Config
 st.set_page_config(page_title="🏝️ Tourism Recommender", layout="wide")
 st.markdown("<h1 style='text-align: center;'>🏝️ Tourism Recommendation System</h1>", unsafe_allow_html=True)
 
-# Sidebar filters
+# Sidebar - User Inputs
 st.sidebar.header("🔍 Filter Preferences")
 selected_cuisine = st.sidebar.selectbox("Choose a Cuisine", sorted(cuisine_df["cuisine"].unique()))
 algo = st.sidebar.radio("Recommendation Type", ["Nearby", "Rating", "Price", "Personalized", "Timing Based"])
 
-# Helper function to get user scores from reviews
+# Helper - Aggregate user ratings
 def get_user_scores():
     user_scores = reviews_df.groupby("rid")["rating"].mean().reset_index()
     user_scores.columns = ["id", "user_rating"]
     return user_scores
 
-# Recommendation logic
+# Filter Functions
 def find_nearby():
     nearby = restaurant_df.dropna(subset=["latitude", "longitude"])
     nearby = nearby[nearby["latitude"] != 0]
@@ -64,7 +63,7 @@ def find_timing():
     matched = restaurant_df[restaurant_df["id"].isin(rid)]
     return matched.sort_values(by="rating", ascending=False).head(10)
 
-# Display Recommendations
+# Display Results
 if st.sidebar.button("Get Recommendations"):
     if algo.lower() == "nearby":
         recs = find_nearby()
@@ -81,27 +80,36 @@ if st.sidebar.button("Get Recommendations"):
 
     if not recs.empty:
         city_name = recs["city"].iloc[0] if "city" in recs.columns else "Unknown"
-        st.success(f"🍽️ Recommended Restaurants in **{city_name}** based on *{algo}*")
+        st.success(f"🍽️ Recommended Restaurants in *{city_name}* based on *{algo}*")
 
-        display_df = recs.rename(columns={
-            "rname": "Name",
-            "address": "Address",
-            "rating": "Rating",
-            "price": "Cost per Head"
-        })[["Name", "Address", "Rating", "Cost per Head"]]
+        # Ensure required columns exist
+        cols = recs.columns
+        if all(col in cols for col in ["rname", "address", "rating", "price"]):
+            display_df = recs.rename(columns={
+                "rname": "Name",
+                "address": "Address",
+                "rating": "Rating",
+                "price": "Cost per Head"
+            })[["Name", "Address", "Rating", "Cost per Head"]]
 
-        # Remove duplicates and sort
-        display_df = display_df.drop_duplicates(subset=["Name", "Address"])
-        display_df = display_df.sort_values(by=["Rating", "Cost per Head"], ascending=[False, False]).reset_index(drop=True)
+            # Remove duplicates
+            display_df = display_df.drop_duplicates(subset=["Name", "Address"])
 
-        st.dataframe(display_df, use_container_width=True)
+            # Sort and display
+            display_df = display_df.sort_values(by=["Rating", "Cost per Head"], ascending=[False, False]).reset_index(drop=True)
+            st.dataframe(display_df, use_container_width=True)
+        else:
+            st.error("One or more required columns are missing from the dataset.")
 
         if st.checkbox("📍 Show Map"):
-            map_df = recs[["latitude", "longitude"]].drop_duplicates().rename(columns={"latitude": "lat", "longitude": "lon"})
-            if not map_df.empty:
-                st.map(map_df)
+            if all(col in recs.columns for col in ["latitude", "longitude"]):
+                map_df = recs[["latitude", "longitude"]].dropna().drop_duplicates().rename(columns={"latitude": "lat", "longitude": "lon"})
+                if not map_df.empty:
+                    st.map(map_df)
+                else:
+                    st.warning("No valid coordinates available for map display.")
             else:
-                st.warning("⚠️ No location data available to display on the map.")
+                st.warning("Missing latitude or longitude in data.")
     else:
         st.warning("No matching recommendations found.")
 
