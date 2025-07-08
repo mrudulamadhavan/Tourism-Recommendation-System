@@ -82,23 +82,29 @@ if st.sidebar.button("Get Recommendations"):
     if not recs.empty:
         city_name = recs["city"].iloc[0] if "city" in recs.columns else "Unknown"
         st.success(f"🍽️ Recommended Restaurants in **{city_name}** based on *{algo}*")
-
+    
         display_df = recs.rename(columns={
             "rname": "Name",
             "address": "Address",
             "rating": "Rating",
             "price": "Cost per Head"
         })[["Name", "Address", "Rating", "Cost per Head"]]
-
+    
+        # Remove duplicates based on Name and Address
+        display_df = display_df.drop_duplicates(subset=["Name", "Address"])
+    
+        # Sort by Rating and Cost per Head (descending)
         display_df = display_df.sort_values(by=["Rating", "Cost per Head"], ascending=[False, False]).reset_index(drop=True)
+    
         st.dataframe(display_df, use_container_width=True)
-
+    
         if st.checkbox("📍 Show Map"):
-            map_df = recs[["latitude", "longitude"]].rename(columns={"latitude": "lat", "longitude": "lon"})
+            map_df = recs[["latitude", "longitude"]].drop_duplicates().rename(columns={"latitude": "lat", "longitude": "lon"})
             if not map_df.empty:
                 st.map(map_df)
-            else:
-                st.warning("No location data available to display on the map.")
+        else:
+            st.warning("No location data available to display on the map.")
+
     else:
         st.warning("No matching recommendations found.")
 
