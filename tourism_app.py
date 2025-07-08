@@ -56,8 +56,29 @@ def find_personalized(cuisine):
     return matched.sort_values(by=["rating", "cost"], ascending=[False, True]).head(10)
 
 def find_timing():
-    rid = timing_df["rid"].unique()
-    return restaurant_df[restaurant_df["id"].isin(rid)].sample(min(10, len(rid)))
+    from datetime import datetime
+
+def find_timing(selected_time):
+    # Get current day of week (e.g., "Monday")
+    current_day = datetime.now().strftime("%A")
+
+    # Convert selected_time (datetime.time) to string format "HH:MM"
+    selected_time_str = selected_time.strftime("%H:%M")
+
+    # Filter timing data for the current day
+    today_timing = timing_df[timing_df["day"].str.lower() == current_day.lower()].copy()
+
+    # Filter restaurants open at selected time
+    open_now = today_timing[
+        (today_timing["starttime"] <= selected_time_str) &
+        (today_timing["endtime"] >= selected_time_str)
+    ]
+
+    # Get matching restaurant IDs
+    open_rids = open_now["rid"].unique()
+
+    return restaurant_df[restaurant_df["id"].isin(open_rids)]
+
 
 # --- Get Recommendations ---
 if st.sidebar.button("Get Recommendations"):
