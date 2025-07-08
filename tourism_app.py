@@ -68,7 +68,8 @@ if st.sidebar.button("Get Recommendations"):
 
     if not recs.empty:
         st.success(f"🍽️ Recommended Restaurants based on *{algo}*")
-        st.dataframe(recs[["rname", "address", "city", "rating", "price"]])
+        st.dataframe(recs[["name", "address", "city", "rating", "cost"]])
+
         
         if st.checkbox("📍 Show Map"):
             map_df = recs[["latitude", "longitude"]].rename(columns={"latitude": "lat", "longitude": "lon"})
