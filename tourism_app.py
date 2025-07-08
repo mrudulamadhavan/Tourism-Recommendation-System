@@ -77,16 +77,20 @@ if st.sidebar.button("Get Recommendations"):
     if not recs.empty:
         st.success(f"🍽️ Recommended Restaurants based on *{algo}*")
     
-        # Prepare and rename columns
-        display_df = recs[["name", "address", "city", "rating", "cost"]].sort_values(by="rating", ascending=False).reset_index(drop=True)
-        display_df.columns = ["Name", "Address", "City", "Rating", "Cost Per Head"]  # Rename here
+        # Select and rename columns
+        display_df = recs[["name", "address", "city", "rating", "cost"]].copy()
+        display_df.columns = ["Name", "Address", "City", "Rating", "Cost Per Head"]
     
-        # Fit dataframe to full screen width
-        st.dataframe(display_df, width=120)
+        # Sort by Rating and Cost Per Head (both descending)
+        display_df = display_df.sort_values(by=["Rating", "Cost Per Head"], ascending=[False, False]).reset_index(drop=True)
+    
+        # Show the table fit to screen
+        st.dataframe(display_df, use_container_width=True)
     
         if st.checkbox("📍 Show Map"):
             map_df = recs[["latitude", "longitude"]].rename(columns={"latitude": "Latitude", "longitude": "Longitude"})
             st.map(map_df)
+
 
 
 
