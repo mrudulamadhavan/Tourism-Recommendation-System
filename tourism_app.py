@@ -75,24 +75,25 @@ if st.sidebar.button("Get Recommendations"):
         recs = pd.DataFrame()
 
     if not recs.empty:
-        st.success(f"🍽️ Recommended Restaurants based on *{algo}*")
+        # Get city name from the first restaurant (assumes all are from same city)
+        city_name = recs["city"].iloc[0] if "city" in recs.columns else "Selected City"
     
-        # Select and rename columns
-        display_df = recs[["name", "address", "city", "rating", "cost"]].copy()
-        display_df.columns = ["Name", "Address", "City", "Rating", "Cost Per Head"]
+        st.success(f"🍽️ Recommended Restaurants in **{city_name}** based on *{algo}*")
     
-        # Sort by Rating and Cost Per Head (both descending)
+        # Select and rename columns (excluding City)
+        display_df = recs[["name", "address", "rating", "cost"]].copy()
+        display_df.columns = ["Name", "Address", "Rating", "Cost Per Head"]
+    
+        # Sort by Rating and Cost Per Head descending
         display_df = display_df.sort_values(by=["Rating", "Cost Per Head"], ascending=[False, False]).reset_index(drop=True)
     
-        # Show the table fit to screen
+        # Show as fit-to-screen table
         st.dataframe(display_df, use_container_width=True)
     
+        # Show map if checked
         if st.checkbox("📍 Show Map"):
-            map_df = recs[["latitude", "longitude"]].rename(columns={"latitude": "Latitude", "longitude": "Longitude"})
+            map_df = recs[["latitude", "longitude"]].rename(columns={"latitude": "lat", "longitude": "lon"})
             st.map(map_df)
-
-
-
 
 # --- Footer ---
 st.markdown("---")
